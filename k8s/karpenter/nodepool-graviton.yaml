@@ -1,0 +1,49 @@
+# arm64 capacity on AWS Graviton, for CPU work whose images are multi-arch.
+#
+# The taint is what makes this safe. A pod with no arm64 build that lands on an
+# arm64 node fails with "exec format error". Without the taint, any pod that
+# does not state an architecture could be placed here. With it, nothing lands on
+# Graviton unless it opts in by tolerating the taint, and the workloads that opt
+# in also require arm64 with node affinity (see k8s/eval/job.yaml).
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: graviton
+spec:
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      taints:
+        - key: arch
+          value: arm64
+          effect: NoSchedule
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["arm64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot", "on-demand"]
+        # With arm64 required, c, m and r are the Graviton families (c7g, m7g,
+        # r7g and later). The generation floor keeps out older, slower ones.
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["c", "m", "r"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["5"]
+      expireAfter: 720h
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m
+    budgets:
+      - nodes: "10%"
+  limits:
+    cpu: "32"
+    memory: 128Gi

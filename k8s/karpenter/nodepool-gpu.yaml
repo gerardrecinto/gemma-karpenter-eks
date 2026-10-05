@@ -1,0 +1,50 @@
+# Capacity for inference and training. Only pods that tolerate the taint and
+# ask for nvidia.com/gpu land here, so nothing else pays for a GPU node.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: gpu
+spec:
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu
+      taints:
+        - key: nvidia.com/gpu
+          value: "true"
+          effect: NoSchedule
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        # Spot first, on-demand when spot is out of capacity.
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot", "on-demand"]
+        # g5 has one A10G (24 GB) per GPU, g6 one L4 (24 GB). Both fit a 2B model.
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["g5", "g6"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["xlarge", "2xlarge"]
+        - key: karpenter.k8s.aws/instance-gpu-manufacturer
+          operator: In
+          values: ["nvidia"]
+      expireAfter: 720h
+  disruption:
+    # WhenEmpty, not WhenEmptyOrUnderutilized. Moving a pod to repack GPU nodes
+    # means reloading the model, which takes minutes, so the pool only removes
+    # a node once nothing is running on it.
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 5m
+    budgets:
+      - nodes: "1"
+  # At most four GPUs at once. Raise it on purpose, not by accident.
+  limits:
+    nvidia.com/gpu: "4"

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ml
+---
+# The name must match aws_eks_pod_identity_association in terraform/storage.tf.
+# That association is what lets pods using this account read and write the artifacts bucket.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ml-workload
+  namespace: ml

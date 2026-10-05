@@ -1,0 +1,59 @@
+# One LoRA fine-tune run. TRAINER_IMAGE, ARTIFACTS_BUCKET and RUN_ID are filled
+# in by `make train`. The Job asks for one GPU, so Karpenter launches a GPU node
+# for it and removes that node a few minutes after the Job finishes.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gemma-lora-${RUN_ID}
+  namespace: ml
+spec:
+  # One retry. A spot interruption restarts the run from the beginning, which is
+  # acceptable for a run this short. A longer run should checkpoint to S3.
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: ml-workload
+      # Required, not preferred. The training image is amd64 only (the PyTorch CUDA
+      # base it builds on is) and the pod needs a GPU, so it must land on an x86
+      # node from the GPU pool.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["amd64"]
+                  - key: karpenter.sh/nodepool
+                    operator: In
+                    values: ["gpu"]
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: trainer
+          image: ${TRAINER_IMAGE}
+          args:
+            - --base-model=google/gemma-2-2b-it
+            - --max-train=1000
+            - --heldout=100
+            - --epochs=1
+            - --output=s3://${ARTIFACTS_BUCKET}/adapters
+            - --run-id=${RUN_ID}
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+          resources:
+            requests:
+              cpu: "3"
+              memory: 14Gi
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 14Gi
+              nvidia.com/gpu: "1"

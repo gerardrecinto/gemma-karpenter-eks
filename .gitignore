@@ -1,0 +1,7 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+__pycache__/
+.pytest_cache/
+eval-results.jsonl

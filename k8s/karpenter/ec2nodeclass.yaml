@@ -1,0 +1,53 @@
+# How to build a node: image, subnets, security groups, role and disk.
+# CLUSTER_NAME and KARPENTER_NODE_ROLE are filled in by `make karpenter` from the Terraform outputs.
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  # al2023@latest follows the newest EKS-optimised AL2023 image, and picks the
+  # NVIDIA variant for GPU instance types. Pin a version in production so a new
+  # image does not roll nodes at a time you did not choose.
+  amiSelectorTerms:
+    - alias: al2023@latest
+  role: ${KARPENTER_NODE_ROLE}
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 50Gi
+        volumeType: gp3
+        encrypted: true
+  metadataOptions:
+    httpTokens: required
+    httpPutResponseHopLimit: 1
+---
+# GPU nodes pull a large inference image and cache model weights, so they get more disk.
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: gpu
+spec:
+  amiSelectorTerms:
+    - alias: al2023@latest
+  role: ${KARPENTER_NODE_ROLE}
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ${CLUSTER_NAME}
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 200Gi
+        volumeType: gp3
+        encrypted: true
+  metadataOptions:
+    httpTokens: required
+    httpPutResponseHopLimit: 1

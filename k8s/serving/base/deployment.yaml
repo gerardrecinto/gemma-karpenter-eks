@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gemma
+  namespace: ml
+spec:
+  # KEDA owns the replica count once the ScaledObject exists.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gemma
+  template:
+    metadata:
+      labels:
+        app: gemma
+      annotations:
+        # Prometheus finds the pod by these and scrapes the vLLM metrics.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: ml-workload
+      # Required, not preferred. The vLLM image is amd64 only and the pod needs a
+      # GPU, so it must land on an x86 node from the GPU pool. Taints keep other
+      # pods off the pool, and this affinity keeps this pod on it.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["amd64"]
+                  - key: karpenter.sh/nodepool
+                    operator: In
+                    values: ["gpu"]
+        # Prefer a different node for each replica, so one node loss or spot
+        # interruption does not take every replica down. Soft, because with one
+        # GPU node available the replicas must still be able to schedule.
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: gemma
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.6.6
+          args:
+            - --model=google/gemma-2-2b-it
+            - --served-model-name=base
+            - --max-model-len=4096
+            - --gpu-memory-utilization=0.90
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+          resources:
+            requests:
+              cpu: "3"
+              memory: 12Gi
+              nvidia.com/gpu: "1"
+            limits:
+              memory: 12Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+          # Loading weights takes a while on a fresh node, so the startup probe
+          # allows up to 15 minutes before readiness is even checked.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 6
+      # Give in-flight requests time to finish when the node is drained.
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+        - name: model-cache
+          emptyDir: {}

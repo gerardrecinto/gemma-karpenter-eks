@@ -1,0 +1,9 @@
+# The base model plus the fine-tuned adapter, served together. A request to
+# model "base" gets the original weights and a request to "tuned" gets the
+# LoRA adapter, so one server answers both and the eval can compare them.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - path: deployment-patch.yaml

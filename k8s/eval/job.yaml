@@ -1,0 +1,75 @@
+# Runs eval/compare.py inside the cluster, on a Graviton node. The script is plain
+# Python and only makes HTTP calls, so it has no reason to take an x86 or GPU node.
+# Both images below are multi-arch (checked with `docker manifest inspect`).
+# ARTIFACTS_BUCKET and RUN_ID are filled in by `make eval-job`.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gemma-eval-${RUN_ID}
+  namespace: ml
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: ml-workload
+      # Opt in to the Graviton pool. The taint keeps everything else off it.
+      tolerations:
+        - key: arch
+          operator: Equal
+          value: arm64
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          # A hard requirement: this Job must run on arm64.
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["arm64"]
+          # A soft preference: spot if available, since a failed eval is cheap to rerun.
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: karpenter.sh/capacity-type
+                    operator: In
+                    values: ["spot"]
+      initContainers:
+        - name: fetch-heldout
+          image: amazon/aws-cli:2.17.0
+          args: ["s3", "cp", "s3://${ARTIFACTS_BUCKET}/adapters/latest/heldout.jsonl", "/data/heldout.jsonl"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: eval
+          image: python:3.12-slim
+          command: ["sh", "-c"]
+          args:
+            - >-
+              python /scripts/compare.py
+              --endpoint http://gemma.ml.svc.cluster.local
+              --heldout /data/heldout.jsonl
+              --out /data/eval-results.jsonl
+              && echo '--- side by side ---'
+              && cat /data/eval-results.jsonl
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: script
+              mountPath: /scripts
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: script
+          configMap:
+            name: eval-script

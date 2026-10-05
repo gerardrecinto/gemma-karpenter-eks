@@ -1,0 +1,27 @@
+# Scales the Deployment on how many requests are queued or running, not on CPU.
+# A GPU server can be saturated while its CPU sits idle, so CPU would hide the load.
+# New replicas are pending pods that ask for a GPU, which is what makes Karpenter
+# add a GPU node.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: gemma
+  namespace: ml
+spec:
+  scaleTargetRef:
+    name: gemma
+  # 1, not 0, so there is always a warm replica. Scale to zero saves a GPU node
+  # overnight but the first request then waits for a node and the model to load.
+  minReplicaCount: 1
+  # Matches the GPU limit of 4 in the NodePool with room for one training Job.
+  maxReplicaCount: 3
+  pollingInterval: 15
+  cooldownPeriod: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local
+        query: sum(vllm:num_requests_running{namespace="ml"}) + sum(vllm:num_requests_waiting{namespace="ml"})
+        # One more replica for roughly every 8 requests in the system. A starting
+        # point to tune against measured latency, not a measured value.
+        threshold: "8"

@@ -1,0 +1,36 @@
+# ARTIFACTS_BUCKET is filled in by `make serve-lora` from the Terraform output.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gemma
+  namespace: ml
+spec:
+  template:
+    spec:
+      initContainers:
+        # Copies the latest adapter from S3 before vLLM starts. It reads S3
+        # through the pod's identity, so no keys are stored in the cluster.
+        - name: fetch-adapter
+          image: amazon/aws-cli:2.17.0
+          args: ["s3", "sync", "s3://${ARTIFACTS_BUCKET}/adapters/latest", "/adapters"]
+          volumeMounts:
+            - name: adapters
+              mountPath: /adapters
+      containers:
+        - name: vllm
+          # A strategic merge replaces the whole args list, so it is repeated in full.
+          args:
+            - --model=google/gemma-2-2b-it
+            - --served-model-name=base
+            - --max-model-len=4096
+            - --gpu-memory-utilization=0.90
+            - --enable-lora
+            - --max-lora-rank=16
+            - --lora-modules
+            - tuned=/adapters
+          volumeMounts:
+            - name: adapters
+              mountPath: /adapters
+      volumes:
+        - name: adapters
+          emptyDir: {}
