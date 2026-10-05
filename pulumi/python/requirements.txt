@@ -1,0 +1,2 @@
+pulumi>=3.150,<4
+pulumi-aws>=7,<8

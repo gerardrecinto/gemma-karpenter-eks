@@ -1,0 +1,37 @@
+# The real serving manifests, changed only where a laptop cluster cannot match
+# AWS: no GPU, so a stub server replaces vLLM; kind nodes are the machine's own
+# architecture, so the arch requirement follows it; scale-down is made quick.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../serving/base
+patches:
+  - target:
+      kind: Deployment
+      name: gemma
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0/values
+        value: ["arm64"]
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: vllm-stub:local
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value: []
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests: { cpu: 100m, memory: 64Mi }
+          limits: { memory: 128Mi }
+  - target:
+      kind: ScaledObject
+      name: gemma
+    patch: |-
+      - op: add
+        path: /spec/advanced
+        value:
+          horizontalPodAutoscalerConfig:
+            behavior:
+              scaleDown:
+                stabilizationWindowSeconds: 30

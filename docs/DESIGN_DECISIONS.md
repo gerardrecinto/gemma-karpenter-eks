@@ -188,8 +188,9 @@ Pod scaling and node scaling are separate loops, and they need to agree:
 3. The new replica asks for one GPU and cannot be scheduled.
 4. Karpenter sees the pending pod and launches a GPU node.
 5. The device plugin advertises the GPU, the pod starts, and vLLM loads the model.
-6. When load falls, KEDA lowers replicas after the cooldown, the node empties,
-   and Karpenter removes it after `consolidateAfter`.
+6. When load falls, the Horizontal Pod Autoscaler that KEDA manages lowers
+   replicas after its scale-down window (300 seconds by default), the node
+   empties, and Karpenter removes it after `consolidateAfter`.
 
 **Why not CPU.** The default HPA metric is CPU. A GPU inference server can be at
 its limit with the CPU nearly idle, so CPU would scale too late or never. The

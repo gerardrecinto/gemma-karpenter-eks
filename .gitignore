@@ -5,3 +5,11 @@ terraform.tfvars
 __pycache__/
 .pytest_cache/
 eval-results.jsonl
+.terragrunt-cache/
+live/**/backend.tf
+live/**/terraform.tfstate*
+pulumi/python/venv/
+pulumi/python/.pytest_cache/
+Pulumi.*.yaml
+!Pulumi.yaml
+live/**/.terraform.lock.hcl

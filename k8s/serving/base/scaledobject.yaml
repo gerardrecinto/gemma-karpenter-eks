@@ -15,8 +15,9 @@ spec:
   minReplicaCount: 1
   # Matches the GPU limit of 4 in the NodePool with room for one training Job.
   maxReplicaCount: 3
-  pollingInterval: 15
-  cooldownPeriod: 300
+  # No pollingInterval or cooldownPeriod: KEDA only uses them for scale to or from
+  # zero. With a minimum of 1, the Horizontal Pod Autoscaler it creates does the
+  # scaling, on its own 15 second sync and 300 second scale-down window.
   triggers:
     - type: prometheus
       metadata:

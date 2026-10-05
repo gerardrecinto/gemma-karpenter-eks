@@ -1,0 +1,10 @@
+# One control plane and three workers. The workers stand in for the three
+# NodePools, so the taints and affinity in the real manifests can be exercised.
+# Every kind node here is the machine's own architecture (arm64 on Apple silicon).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker
+  - role: worker
