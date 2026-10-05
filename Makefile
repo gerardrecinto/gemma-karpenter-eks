@@ -5,7 +5,7 @@ RUN_ID ?= $(shell date +%Y%m%d%H%M%S)
 # Values read from Terraform once the cluster exists.
 out = $(shell $(TF) output -raw $(1))
 
-.PHONY: help validate init apply kubeconfig karpenter hf-secret serve serve-lora image train eval eval-job teardown
+.PHONY: help validate terragrunt-validate pulumi-test local local-down init apply kubeconfig karpenter hf-secret serve serve-lora image train eval eval-job teardown
 
 help:
 	@grep -E '^# make ' Makefile | sed 's/^# //'
@@ -13,6 +13,23 @@ help:
 # make validate     lint Terraform and manifests and run the unit tests, no AWS needed
 validate:
 	scripts/validate.sh
+
+# make terragrunt-validate   check every environment under live/ with local state (no AWS account)
+terragrunt-validate:
+	cd live && terragrunt hcl fmt --check && TG_LOCAL_STATE=1 terragrunt run --all --non-interactive -- validate
+
+# make pulumi-test  run the Pulumi Python and Go programs against Pulumi's mocks (no AWS account)
+pulumi-test:
+	cd pulumi/python && python3 -m pytest -q -W ignore
+	cd pulumi/go && CGO_ENABLED=0 go test ./... -count=1
+
+# make local        deploy serving and eval to a local kind cluster and exercise them (no AWS, no GPU)
+local:
+	local/run.sh
+
+# make local-down   delete the local kind cluster
+local-down:
+	kind delete cluster --name gemma-local
 
 # make init         download Terraform providers and modules
 init:

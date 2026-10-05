@@ -1,0 +1,10 @@
+name: gemma-karpenter-storage
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+description: Pulumi (Python) version of terraform/storage.tf, the artifacts bucket, trainer ECR repository and pod identity.
+config:
+  clusterName:
+    type: string
+    default: gemma-karpenter

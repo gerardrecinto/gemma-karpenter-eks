@@ -1,0 +1,7 @@
+name: gemma-karpenter-storage-go
+runtime: go
+description: Pulumi (Go) version of terraform/storage.tf, the artifacts bucket, trainer ECR repository and pod identity.
+config:
+  clusterName:
+    type: string
+    default: gemma-karpenter

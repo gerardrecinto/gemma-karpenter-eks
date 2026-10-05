@@ -1,0 +1,22 @@
+# The real eval Job, with the S3 download replaced by a two-line heldout file.
+# Its scheduling (Graviton toleration, arm64 requirement) is unchanged.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../eval
+patches:
+  - target:
+      kind: Job
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0
+        value:
+          name: fetch-heldout
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              printf '%s\n' '{"instruction":"What is Karpenter?","response":"stub answer from base"}' '{"instruction":"What is KEDA?","response":"stub answer from tuned"}' > /data/heldout.jsonl
+          volumeMounts:
+            - name: data
+              mountPath: /data
