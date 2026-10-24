@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gemma-karpenter-eks: GPUs only when needed</title>
+<meta name="description" content="Edit the real Kubernetes manifests for a Gemma serving stack in your browser and run the repo's own scheduling tests under pytest. Wrong architecture, missing toleration and unbounded GPU pools fail.">
+<meta property="og:title" content="gemma-karpenter-eks">
+<meta property="og:description" content="Edit the real Kubernetes manifests for a Gemma serving stack in your browser and run the repo's own scheduling tests under pytest. Wrong architecture, missing toleration and unbounded GPU pools fail.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23fff' stroke-width='3'/%3E%3C/svg%3E">
+<style>
+
+:root{--bg:#f8fafc;--panel:#fff;--panel2:#f1f5f9;--line:#e2e8f0;--fg:#0f172a;--mute:#475569;--brand:#4338ca;--brand-bg:#e0e7ff;--ok:#047857;--ok-bg:#d1fae5;--err:#b91c1c;--err-bg:#fee2e2;--code:#0b1220;--code-fg:#e2e8f0}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#070d1a;--panel:#0d1526;--panel2:#111c33;--line:#1e2b47;--fg:#e8eefc;--mute:#9fb0cc;--brand:#818cf8;--brand-bg:#1e1b4b;--ok:#34d399;--ok-bg:#06382b;--err:#fca5a5;--err-bg:#3b1212}}
+:root[data-theme=dark]{--bg:#070d1a;--panel:#0d1526;--panel2:#111c33;--line:#1e2b47;--fg:#e8eefc;--mute:#9fb0cc;--brand:#818cf8;--brand-bg:#1e1b4b;--ok:#34d399;--ok-bg:#06382b;--err:#fca5a5;--err-bg:#3b1212}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--brand)}
+code,pre,textarea,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:56px;gap:12px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--fg);text-decoration:none}
+.logo i{width:22px;height:22px;border-radius:6px;background:#4f46e5;display:inline-block}
+nav .links{display:flex;gap:18px;align-items:center;font-size:14px}
+nav .links a{color:var(--mute);text-decoration:none}
+nav .links a:hover{color:var(--fg)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid var(--line);color:var(--fg);background:var(--panel);cursor:pointer;font-size:15px}
+.btn.primary{background:#4f46e5;border-color:#4f46e5;color:#ffffff}
+.btn.primary:hover{background:#6366f1}
+.btn:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #4f46e5;outline-offset:2px}
+.hero{padding:72px 0 40px;text-align:center}
+.pill{display:inline-block;font-size:13px;color:var(--brand);background:var(--brand-bg);padding:4px 12px;border-radius:99px;margin-bottom:20px;font-weight:600}
+h1{font-size:clamp(34px,6vw,58px);line-height:1.08;margin:0 0 18px;letter-spacing:-.02em}
+h1 em{font-style:normal;color:var(--brand)}
+.lede{max-width:700px;margin:0 auto 28px;color:var(--mute);font-size:18px}
+.cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.stats{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;margin-top:36px;color:var(--mute);font-size:14px}
+.stats b{display:block;color:var(--fg);font-size:22px}
+section{padding:56px 0}
+h2{font-size:clamp(26px,4vw,36px);margin:0 0 8px;letter-spacing:-.01em}
+.sub{color:var(--mute);margin:0 0 28px;max-width:720px}
+.lab{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.lab{grid-template-columns:minmax(0,1fr)}nav .links .hide-s{display:none}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;min-width:0}
+.card h3{margin:0;padding:12px 16px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tools{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:600 12px system-ui;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer;text-transform:none;letter-spacing:0}
+.chip[aria-pressed=true]{background:var(--brand-bg);border-color:var(--brand);color:var(--brand)}
+#log{display:block;width:100%;height:420px;border:0;padding:12px 14px;font-size:12.5px;line-height:1.55;background:var(--code);color:var(--code-fg);resize:vertical;white-space:pre;overflow:auto}
+.src{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--mute);flex-wrap:wrap}
+.out{min-height:420px}
+.status{padding:16px;color:var(--mute);font-size:14px}
+.verdict{padding:18px 16px;border-bottom:1px solid var(--line);background:var(--err-bg)}
+.verdict.unknown{background:var(--panel2)}
+.verdict b{display:block;font-size:20px;text-transform:uppercase;letter-spacing:.04em;color:var(--err)}
+.verdict.unknown b{color:var(--mute)}
+.verdict span{font-size:14px;color:var(--mute)}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line)}
+.sec:last-child{border-bottom:0}
+.sec h4{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.bar{height:10px;border-radius:99px;background:var(--panel2);overflow:hidden;max-width:260px;display:inline-block;vertical-align:middle;margin-right:10px;width:60%}
+.bar i{display:block;height:100%;background:#4f46e5}
+.site{padding:8px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.site:last-child{border:0}
+.site code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
+.fix{background:var(--ok-bg);color:var(--ok);padding:10px 12px;border-radius:8px;font-size:14px}
+.note{font-size:13px;color:var(--mute);margin-top:12px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:860px){.steps{grid-template-columns:minmax(0,1fr)}}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+.step .n{width:28px;height:28px;border-radius:8px;background:var(--brand-bg);color:var(--brand);display:grid;place-items:center;font-weight:700;margin-bottom:10px}
+.step h3{margin:0 0 6px;font-size:17px}
+.step p{margin:0;color:var(--mute);font-size:15px}
+.tw{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow-x:auto;max-width:100%}
+table{width:100%;min-width:560px;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);background:var(--panel2)}
+tr:last-child td{border-bottom:0}
+td:first-child{font-family:ui-monospace,monospace;font-weight:700;white-space:nowrap}
+.install pre{background:var(--code);color:var(--code-fg);padding:16px;border-radius:12px;overflow-x:auto;font-size:13.5px;margin:0 0 12px}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.cols2{grid-template-columns:minmax(0,1fr)}}
+.limits{background:var(--panel);border:1px solid var(--line);border-left:4px solid #f59e0b;border-radius:10px;padding:16px 20px}
+.limits ul{margin:8px 0 0;padding-left:20px;color:var(--mute)}
+footer{border-top:1px solid var(--line);padding:32px 0;color:var(--mute);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+.tabs{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line)}
+#ed{display:block;width:100%;height:320px;border:0;padding:12px 14px;font-size:12.5px;line-height:1.55;background:var(--code);color:var(--code-fg);resize:vertical;white-space:pre;overflow:auto;font-family:ui-monospace,monospace}
+.ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--line)}
+.sum{padding:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line)}
+.sum.ok{background:var(--ok-bg)} .sum.bad{background:var(--err-bg)}
+.sum b{font-size:18px;text-transform:uppercase;letter-spacing:.04em}
+.sum.ok b{color:var(--ok)} .sum.bad b{color:var(--err)}
+.tr{padding:9px 14px;border-bottom:1px solid var(--line);font-size:13px;overflow-wrap:anywhere}
+.tr:last-child{border:0}
+.tr code{font-size:12px}
+.pill2{font:700 11px ui-monospace,monospace;padding:2px 8px;border-radius:6px;margin-right:8px}
+.pill2.PASSED{background:var(--ok-bg);color:var(--ok)} .pill2.FAILED{background:var(--err-bg);color:var(--err)} .pill2.SKIPPED{background:var(--panel2);color:var(--mute)}
+.why{display:block;color:var(--err);margin-top:4px;font-size:12.5px}
+.pools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px}
+@media (max-width:560px){.pools{grid-template-columns:minmax(0,1fr)}}
+.pool{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2)}
+.pool b{font-family:ui-monospace,monospace}
+.pool small{display:block;color:var(--mute);font-size:12.5px}
+.logbox{max-height:380px;overflow:auto}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="logo" href="#top"><i></i>gemma-karpenter-eks</a>
+  <div class="links"><a href="#try" class="hide-s">Try it</a><a href="#install" class="hide-s">Install</a><a class="btn" href="https://github.com/gerardrecinto/gemma-karpenter-eks">GitHub</a></div>
+</div></nav>
+
+<header class="hero" id="top"><div class="wrap">
+  <h1>Pay for a GPU only while a pod is <em>waiting for one</em>.</h1>
+  <p class="lede">Configuration for serving and fine-tuning Gemma on EKS with Karpenter, Graviton and GPU node pools, vLLM and KEDA. Taints and affinity keep each pod on the architecture its image was built for, and the repo tests that rule.</p>
+  <div class="cta"><a class="btn primary" href="#try">Misplace a pod</a><a class="btn" href="#install">Try it without AWS</a></div>
+  <div class="stats"><div><b>3</b>node pools, one architecture each</div><div><b>4</b>GPUs at most</div><div><b>0</b>AWS accounts used</div></div>
+</div></header>
+
+
+<section id="try"><div class="wrap">
+  <h2>Misplace a pod. Watch the repo's own tests refuse it.</h2>
+  <p class="sub">On a mixed x86 and arm64 GPU cluster, the expensive mistakes show up only as a Pending pod or <code>exec format error</code>. The repo checks them in <code>tests/test_scheduling.py</code>. That exact file runs here under pytest against the repo's real manifests in an in-memory copy. Edit a manifest or use a preset, then run the tests. Nothing is applied to any cluster.</p>
+  <div class="lab">
+    <div class="card">
+      <h3><span>Manifests</span><span class="tools"><button class="chip" id="reset">Reset all</button></span></h3>
+      <div class="tabs" id="tabs" role="group" aria-label="Manifest files"></div>
+      <label class="sr" for="ed">Manifest contents</label>
+      <textarea id="ed" spellcheck="false" wrap="off"></textarea>
+      <div class="ctrl"><span class="note" style="margin:0">Break it:</span>
+        <button class="chip" data-pre="arch">Send the GPU pod to arm64</button>
+        <button class="chip" data-pre="tol">Drop the GPU toleration</button>
+        <button class="chip" data-pre="mix">Mix architectures in the GPU pool</button>
+        <button class="chip" data-pre="lim">Remove the GPU limit</button>
+      </div>
+      <div class="ctrl"><button class="btn primary" id="run" type="button">Run test_scheduling.py</button></div>
+    </div>
+    <div class="card" id="out" aria-live="polite">
+      <h3><span>pytest</span></h3>
+      <div class="status" id="boot">Loading Python, pytest and PyYAML (about 15 MB the first time, cached after)...</div>
+    </div>
+  </div>
+  <p class="note">Skipped means the rule does not apply to that pod, for example a Deployment that asks for no GPU. The repo's other checks (Terraform validate, kubeconform, the local kind cluster) need real tools and are not run here.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Three pools, one architecture each</h2>
+  <p class="sub">Karpenter launches nodes just in time from three NodePools. Taints and required affinity keep every workload on the architecture its image was built for.</p>
+  <div class="card"><div class="pools">
+    <div class="pool"><b>cpu</b><small>amd64, no taint</small><small>default CPU workloads</small></div>
+    <div class="pool"><b>graviton</b><small>arm64, taint arch=arm64</small><small>the eval Job, multi-arch images only</small></div>
+    <div class="pool"><b>gpu</b><small>amd64, taint nvidia.com/gpu</small><small>vLLM and training, capped at 4 GPUs, removes only empty nodes</small></div>
+  </div></div>
+  <div class="steps" style="margin-top:16px">
+    <div class="step"><div class="n">1</div><h3>Pay for GPUs only while used</h3><p>Karpenter asks EC2 for a g5 or g6 node when a pod is Pending for a GPU, spot first. No node group per instance type to size.</p></div>
+    <div class="step"><div class="n">2</div><h3>Scale on queue depth</h3><p>KEDA scales the model server on the vLLM queue, because a saturated GPU hides load from CPU metrics.</p></div>
+    <div class="step"><div class="n">3</div><h3>Check the fine-tune helped</h3><p>A LoRA training Job writes an adapter to S3, and an eval Job compares base and tuned answers on held-out prompts.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>What is verified, and what is not</h2>
+  <p class="sub">The README is strict about this, so this page repeats it.</p>
+  <div class="tw"><table><thead><tr><th>Claim</th><th>Status</th></tr></thead><tbody>
+    <tr><td>Terraform validates, manifests match their schemas, unit tests pass</td><td>Checked in CI on every push. The scheduling tests run on this page.</td></tr>
+    <tr><td>Scheduling, KEDA scale up and down, eval on arm64</td><td>Run on a local kind cluster with a stub model server, not vLLM and not a model.</td></tr>
+    <tr><td>Karpenter launching real GPU nodes, vLLM serving Gemma, the fine-tune</td><td>Not run on AWS. The status badge says validated locally, not on AWS.</td></tr>
+  </tbody></table></div>
+</div></section>
+
+<section id="install" class="install"><div class="wrap">
+  <h2>Try it without AWS</h2>
+  <p class="sub">Needs terraform 1.5+, kubectl, kubeconform, envsubst and Python 3 with pytest and pyyaml.</p>
+  <div class="cols2">
+    <div>
+<pre>git clone https://github.com/gerardrecinto/gemma-karpenter-eks
+cd gemma-karpenter-eks
+make validate</pre>
+    </div>
+    <div>
+<pre>make local        # kind cluster, arm64 host
+make local-down</pre>
+      <p class="note">The design doc explains each decision, what it was chosen over and what it costs: <code>docs/DESIGN_DECISIONS.md</code>.</p>
+    </div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="limits">
+    <strong>What this does not do</strong>
+    <ul>
+      <li>It has not been deployed to AWS, so there are no cost or latency numbers.</li>
+      <li>The local cluster uses a stub in place of vLLM. It proves the plumbing, not the model.</li>
+      <li>The scheduling tests catch the rules the repo wrote down. They do not prove a pod will fit a real instance type.</li>
+    </ul>
+  </div>
+</div></section>
+
+
+<footer><div class="wrap">
+  <span>gemma-karpenter-eks. Built by <a href="https://github.com/gerardrecinto">Gerard Recinto</a>.</span>
+  <span><a href="https://github.com/gerardrecinto/gemma-karpenter-eks">Source</a> &middot; <a href="https://github.com/gerardrecinto/gemma-karpenter-eks/releases">Releases</a></span>
+</div></footer>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script>
+
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const track = (n) => { try { if (window.plausible) window.plausible(n); } catch (e) {} };
+  let py = null, orig = {}, files = {}, cur = null;
+  const EDIT = ["k8s/serving/base/deployment.yaml", "k8s/training/job.yaml", "k8s/eval/job.yaml", "k8s/karpenter/nodepool-gpu.yaml", "k8s/karpenter/nodepool-graviton.yaml", "k8s/karpenter/nodepool-cpu.yaml", "k8s/serving/base/scaledobject.yaml"];
+  const short = (f) => f.replace("k8s/", "").replace("serving/base/", "serving/");
+  function tabs() { $("tabs").innerHTML = EDIT.map((f) => `<button class="chip" data-f="${f}" aria-pressed="${f === cur}">${short(f)}${files[f] !== orig[f] ? " *" : ""}</button>`).join(""); }
+  function open(f) { cur = f; $("ed").value = files[f]; tabs(); }
+  $("tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-f]"); if (b) open(b.dataset.f); });
+  $("ed").addEventListener("input", () => { files[cur] = $("ed").value; tabs(); });
+  $("reset").addEventListener("click", () => { files = { ...orig }; open(cur); show(null); });
+  const sub = (f, a, b) => { files[f] = files[f].replace(a, b); open(f); };
+  const PRE = {
+    arch: () => sub("k8s/serving/base/deployment.yaml", 'values: ["amd64"]', 'values: ["arm64"]'),
+    tol: () => sub("k8s/serving/base/deployment.yaml", /tolerations:\s*\n\s*- key: nvidia.com\/gpu\n\s*operator: Exists\n\s*effect: NoSchedule/, "tolerations: []"),
+    mix: () => sub("k8s/karpenter/nodepool-gpu.yaml", /(kubernetes.io\/arch\n\s*operator: In\n\s*values: )\["amd64"\]/, '$1["amd64", "arm64"]'),
+    lim: () => sub("k8s/karpenter/nodepool-gpu.yaml", /limits:\s*\n\s*nvidia.com\/gpu: "4"/, "limits: {}"),
+  };
+  document.querySelectorAll("[data-pre]").forEach((b) => b.addEventListener("click", () => { PRE[b.dataset.pre](); run(); track("gk_preset_" + b.dataset.pre); }));
+
+  const PY = `
+import sys, io, os, json, contextlib, importlib
+def run_tests(files_json):
+    import pytest
+    for p, t in json.loads(files_json).items():
+        fp = "/repo/" + p; os.makedirs(os.path.dirname(fp), exist_ok=True); open(fp, "w").write(t)
+    sys.dont_write_bytecode = True
+    for m in [m for m in sys.modules if m.startswith("test_scheduling")]: del sys.modules[m]
+    importlib.invalidate_caches()
+    out = io.StringIO()
+    os.environ["COLUMNS"] = "400"
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+        code = pytest.main(["/repo/tests/test_scheduling.py", "-q", "-rA", "--tb=no", "-p", "no:cacheprovider", "-p", "no:warnings", "--rootdir=/repo"])
+    return json.dumps({"code": int(code), "out": out.getvalue()})
+`;
+  function show(r) {
+    const el = $("out"); const head = "<h3><span>pytest</span></h3>";
+    if (!r) { el.innerHTML = head + '<div class="status">Run the tests.</div>'; return; }
+    const rows = []; const re = /^(PASSED|FAILED|SKIPPED|ERROR)\s+(\S+?)::(\S+)(?:\s+-\s+(.*))?$/;
+    let skipped = 0;
+    r.out.split("\n").forEach((l) => { const m = l.match(re); if (m) { rows.push({ s: m[1] === "ERROR" ? "FAILED" : m[1], name: m[3], why: m[4] || "" }); return; } const k = l.match(/^SKIPPED \[(\d+)\] \S+?:\d+: (.*)$/); if (k) { skipped += +k[1]; rows.push({ s: "SKIPPED", name: k[1] + " skipped: " + k[2], why: "" }); } });
+    const c = { PASSED: 0, FAILED: 0, SKIPPED: skipped }; rows.forEach((x) => { if (x.s !== "SKIPPED") c[x.s]++; });
+    if (!rows.length) { el.innerHTML = head + `<div class="status" style="color:var(--err)">pytest did not report any results.</div><pre class="raw" style="margin:0;padding:12px 16px;font-size:12px;white-space:pre-wrap">${esc(r.out.slice(-600))}</pre>`; return; }
+    const order = { FAILED: 0, PASSED: 1, SKIPPED: 2 }; rows.sort((a, b) => order[a.s] - order[b.s]);
+    el.innerHTML = head + `<div class="sum ${c.FAILED ? "bad" : "ok"}"><b>${c.FAILED ? c.FAILED + " failed" : "All passed"}</b><span>${c.PASSED} passed, ${c.SKIPPED} skipped${c.FAILED ? ". CI would block this change." : ". CI would let this through."}</span></div>` +
+      rows.map((x) => `<div class="tr"><span class="pill2 ${x.s}">${x.s}</span><code>${esc(x.name)}</code>${x.why && x.s === "FAILED" ? `<span class="why">${esc(x.why.replace(/^AssertionError:\s*/, ""))}</span>` : ""}</div>`).join("");
+  }
+  function run() {
+    if (!py) return;
+    py.globals.set("_f", JSON.stringify(files));
+    let r; try { r = JSON.parse(py.runPython("run_tests(_f)")); } catch (e) { r = { code: 2, out: "ERROR x::y - " + String(e.message || e).split("\n").pop() }; }
+    show(r); track("gk_run");
+  }
+  $("run").addEventListener("click", run);
+
+  (async () => {
+    try {
+      py = await loadPyodide(); await py.loadPackage(["pyyaml", "pytest"]);
+      const bundle = await (await fetch("bundle.json")).json(); orig = bundle; files = { ...bundle };
+      py.runPython("import os; os.makedirs('/repo/tests', exist_ok=True)");
+      py.FS.writeFile("/repo/tests/test_scheduling.py", await (await fetch("py/test_scheduling.py")).text());
+      py.runPython(PY); open(EDIT[0]); window.__GK_READY__ = true; run();
+    } catch (e) { $("boot").textContent = "The in-browser test runner did not load (" + String(e.message || e).split("\n").pop() + "). Run make validate locally for the same checks."; }
+  })();
+})();
+
+</script>
+</body>
+</html>
